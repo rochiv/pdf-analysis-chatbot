@@ -70,7 +70,11 @@ ollama pull llama2
 
 1. Start the application:
 ```bash
-python research.py
+# For production use:
+python chatbot.py
+
+# For development with auto-reload:
+gradio chatbot.py
 ```
 
 2. Open your web browser and navigate to the URL shown in the terminal (typically http://localhost:7860)

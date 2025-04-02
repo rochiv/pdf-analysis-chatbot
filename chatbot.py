@@ -249,7 +249,7 @@ def create_gradio_interface() -> gr.Blocks:
         gr.Blocks: The configured Gradio interface.
     """
     with gr.Blocks() as demo:
-        gr.Markdown("# PDF Analysis and Chat Interface")
+        gr.Markdown("# PDF Analysis Chatbot")
 
         with gr.Row():
             pdf_input = gr.File(label="Upload PDF")
@@ -292,4 +292,7 @@ chatbot = ChatBot()
 
 if __name__ == "__main__":
     demo = create_gradio_interface()
-    demo.launch()
+    demo.launch(
+        share=False,            # Don't create public link
+        server_name="0.0.0.0",  # Allow external connections
+    )
