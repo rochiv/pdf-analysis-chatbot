@@ -16,14 +16,22 @@ A powerful PDF analysis tool that combines RAG (Retrieval Augmented Generation) 
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd <repository-name>
+git clone git@github.com:rochiv/pdf-analysis-chatbot.git
+cd pdf-analysis-chatbot
 ```
 
 2. Create and activate a virtual environment (recommended):
+
+Using Python's built-in venv:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+Or using Conda:
+```bash
+conda create -n pdf-chatbot python=3.9
+conda activate pdf-chatbot
 ```
 
 3. Install required packages:
