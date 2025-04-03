@@ -257,13 +257,18 @@ def create_gradio_interface() -> gr.Blocks:
 
         status_output = gr.Textbox(label="Status")
 
-        chatbot_interface = gr.Chatbot(label="Chat History")
+        chatbot_interface = gr.Chatbot(
+            label="Chat History",
+            type="messages"  # Use the new message format
+        )
         msg_input = gr.Textbox(label="Ask a question about the PDF")
         send_button = gr.Button("Send")
 
-        def respond(message: str, history: List[Tuple[str, str]]) -> Tuple[str, List[Tuple[str, str]]]:
+        def respond(message: str, history: List[Dict[str, str]]) -> Tuple[str, List[Dict[str, str]]]:
             bot_response = chatbot.chat(message)
-            history.append((message, bot_response))
+            # Convert to the new message format
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": bot_response})
             return "", history
 
         process_button.click(
