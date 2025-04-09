@@ -27,6 +27,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import io
 import re
 from typing import List, Dict, Any, Optional, Tuple
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def extract_images_from_pdf(pdf_path: str) -> List[Image.Image]:
@@ -43,7 +47,11 @@ def extract_images_from_pdf(pdf_path: str) -> List[Image.Image]:
         FileNotFoundError: If the PDF file is not found.
         ValueError: If the PDF file is corrupted or invalid.
     """
-    doc = fitz.open(pdf_path)
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        logging.error(f"Failed to open PDF file {pdf_path}: {e}")
+        raise
     images = []
 
     for page_num in range(len(doc)):
@@ -79,7 +87,11 @@ def extract_text_with_metadata(pdf_path: str) -> List[Dict[str, Any]]:
         FileNotFoundError: If the PDF file is not found.
         ValueError: If the PDF file is corrupted or invalid.
     """
-    reader = PdfReader(pdf_path)
+    try:
+        reader = PdfReader(pdf_path)
+    except Exception as e:
+        logging.error(f"Failed to read PDF file {pdf_path}: {e}")
+        raise
     documents = []
 
     # Compile regex patterns for figures and tables
@@ -129,6 +141,7 @@ def create_vector_store(text_documents: List[Dict[str, Any]]) -> FAISS:
         Uses HuggingFace embeddings model 'sentence-transformers/all-mpnet-base-v2'
         for creating embeddings.
     """
+    logging.info("Creating vector store from text documents.")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
@@ -166,6 +179,7 @@ def get_relevant_context(query: str, vector_store: FAISS) -> str:
     Returns:
         str: Concatenated relevant context from the most similar documents.
     """
+    logging.info("Retrieving relevant context for the query.")
     results = vector_store.similarity_search(query, k=3)
     context = "\n".join([doc.page_content for doc in results])
     return context
@@ -185,6 +199,7 @@ class ChatBot:
 
     def __init__(self):
         """Initialize the ChatBot with empty vector store and history."""
+        logging.info("Initializing ChatBot.")
         self.vector_store: Optional[FAISS] = None
         self.history: List[Tuple[str, str]] = []
 
@@ -198,10 +213,15 @@ class ChatBot:
         Returns:
             str: Status message indicating the number of images extracted.
         """
-        images = extract_images_from_pdf(pdf_file.name)
-        text_documents = extract_text_with_metadata(pdf_file.name)
-        self.vector_store = create_vector_store(text_documents)
-        return f"Processed PDF. Extracted {len(images)} images and created vector store."
+        try:
+            images = extract_images_from_pdf(pdf_file.name)
+            text_documents = extract_text_with_metadata(pdf_file.name)
+            self.vector_store = create_vector_store(text_documents)
+            logging.info(f"Processed PDF. Extracted {len(images)} images.")
+            return f"Processed PDF. Extracted {len(images)} images and created vector store."
+        except Exception as e:
+            logging.error(f"Error processing PDF: {e}")
+            return "Failed to process PDF. Please check the file and try again."
 
     def chat(self, message: str) -> str:
         """
