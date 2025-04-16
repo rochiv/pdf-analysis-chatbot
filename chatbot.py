@@ -30,7 +30,8 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def extract_images_from_pdf(pdf_path: str) -> List[Image.Image]:
@@ -239,26 +240,41 @@ class ChatBot:
         if not self.vector_store:
             return "Please upload a PDF first."
 
-        # Get relevant context
-        context = get_relevant_context(message, self.vector_store)
+        try:
+            # Get relevant context
+            context = get_relevant_context(message, self.vector_store)
 
-        # Create prompt with context and instruction about references
-        prompt = f"""Context: {context}
+            # Create prompt with context and instruction about references
+            prompt = f"""Context: {context}
 
 Question: {message}
 
 Please answer based on the context provided. When referring to figures, tables, or specific content, include their page numbers and reference numbers as they appear in the [Figure X (Page Y)] or [Table X (Page Y)] format in the context."""
 
-        # Get response from Ollama
-        response = ollama.chat(model="llama2", messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that answers questions based on the provided context. Always include page numbers and figure/table numbers when referencing them in your answers."
-            },
-            {"role": "user", "content": prompt}
-        ])
+            # Get response from Ollama
+            try:
+                response = ollama.chat(model="llama2", messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant that answers questions based on the provided context. Always include page numbers and figure/table numbers when referencing them in your answers."
+                    },
+                    {"role": "user", "content": prompt}
+                ])
+                return response['message']['content']
+            except ConnectionError:
+                logging.error("Failed to connect to Ollama service")
+                return "Error: Cannot connect to Ollama. Please make sure Ollama is running by executing 'ollama serve' in a terminal. Visit https://ollama.com/download for installation instructions."
+            except Exception as e:
+                logging.error(f"Error with Ollama service: {e}")
+                return f"Error communicating with the language model: {str(e)}"
 
-        return response['message']['content']
+        except Exception as e:
+            logging.error(f"Error in chat processing: {e}")
+            return f"An error occurred while processing your question: {str(e)}"
+
+
+# Initialize chatbot
+chatbot = ChatBot()
 
 
 def create_gradio_interface() -> gr.Blocks:
@@ -269,6 +285,9 @@ def create_gradio_interface() -> gr.Blocks:
         gr.Blocks: The configured Gradio interface.
     """
     with gr.Blocks() as demo:
+        # Initialize chatbot state
+        chatbot_state = gr.State(ChatBot())
+
         gr.Markdown("# PDF Analysis Chatbot")
 
         with gr.Row():
@@ -284,36 +303,43 @@ def create_gradio_interface() -> gr.Blocks:
         msg_input = gr.Textbox(label="Ask a question about the PDF")
         send_button = gr.Button("Send")
 
-        def respond(message: str, history: List[Dict[str, str]]) -> Tuple[str, List[Dict[str, str]]]:
-            bot_response = chatbot.chat(message)
+        # Update process_pdf function to handle state
+        def process_pdf_with_state(pdf_file, chatbot_instance):
+            status = chatbot_instance.process_pdf(pdf_file)
+            logging.info(f"PDF processed, status: {status}")
+            return status, chatbot_instance
+
+        # Update chat function to handle state
+        def respond(message, history, chatbot_instance):
+            logging.info(f"Processing message: {message}")
+            bot_response = chatbot_instance.chat(message)
+            logging.info(
+                f"Vector store exists: {chatbot_instance.vector_store is not None}")
             # Convert to the new message format
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": bot_response})
-            return "", history
+            return "", history, chatbot_instance
 
         process_button.click(
-            fn=chatbot.process_pdf,
-            inputs=[pdf_input],
-            outputs=[status_output]
+            fn=process_pdf_with_state,
+            inputs=[pdf_input, chatbot_state],
+            outputs=[status_output, chatbot_state]
         )
 
         send_button.click(
             fn=respond,
-            inputs=[msg_input, chatbot_interface],
-            outputs=[msg_input, chatbot_interface]
+            inputs=[msg_input, chatbot_interface, chatbot_state],
+            outputs=[msg_input, chatbot_interface, chatbot_state]
         )
 
         msg_input.submit(
             fn=respond,
-            inputs=[msg_input, chatbot_interface],
-            outputs=[msg_input, chatbot_interface]
+            inputs=[msg_input, chatbot_interface, chatbot_state],
+            outputs=[msg_input, chatbot_interface, chatbot_state]
         )
 
     return demo
 
-
-# Initialize chatbot
-chatbot = ChatBot()
 
 if __name__ == "__main__":
     demo = create_gradio_interface()
